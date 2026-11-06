@@ -1,5 +1,4 @@
-
-name: Build ClipForge AI Crash Fix
+name: Build ClipForge APK
 
 on:
   workflow_dispatch:
@@ -7,18 +6,15 @@ on:
     branches:
       - main
 
-permissions:
-  contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out source
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -26,25 +22,19 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          packages: 'platform-tools'
 
-      - name: Install Android SDK, NDK and CMake
+      - name: Install Android SDK components
         run: |
-          sdkmanager "platforms;android-35" \
-            "build-tools;35.0.0" \
-            "ndk;27.2.12479018" \
-            "cmake;3.22.1"
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
 
-      - name: Extract crash-fix project
+      - name: Extract ClipForge project
         run: |
-          set -euo pipefail
-          ZIP_FILE="$(find . -type f -iname '*CrashFix*.zip' -print -quit)"
+          mkdir -p project
+          ZIP_FILE=$(find . -maxdepth 1 -iname '*SmartException*Fix*.zip' | head -n 1)
           if [ -z "$ZIP_FILE" ]; then
-            echo "Crash-fix ZIP not found"
+            echo "ClipForge SmartException ZIP not found!"
             exit 1
           fi
-          echo "Using $ZIP_FILE"
           unzip -q "$ZIP_FILE" -d project
           test -f project/clipforge_src/settings.gradle.kts
           test -f project/clipforge_src/app/build.gradle.kts
@@ -54,14 +44,22 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build crash-fix APK
+      - name: Check Smart Exception dependency
         working-directory: project/clipforge_src
-        run: gradle --no-daemon --stacktrace assembleDebug
+        run: |
+          gradle :app:dependencies --configuration debugRuntimeClasspath > dependencies.txt
+          grep -i "smart-exception-java" dependencies.txt
 
-      - name: Upload crash-fix APK
+      - name: Build APK
+        working-directory: project/clipforge_src
+        run: gradle --refresh-dependencies --stacktrace assembleDebug
+
+      - name: Verify APK
+        run: |
+          test -f project/clipforge_src/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ClipForge-AI-CrashFix-APK
+          name: ClipForge-SmartException-Fixed-APK
           path: project/clipforge_src/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
