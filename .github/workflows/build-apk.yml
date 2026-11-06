@@ -1,5 +1,5 @@
 
-name: Build ClipForge AI APK
+name: Build ClipForge AI Crash Fix
 
 on:
   workflow_dispatch:
@@ -36,42 +36,32 @@ jobs:
             "ndk;27.2.12479018" \
             "cmake;3.22.1"
 
-      
-      - name: Extract ClipForge AI
-        shell: bash
+      - name: Extract crash-fix project
         run: |
           set -euo pipefail
-
-          echo "Searching repository for ClipForge AI ZIP..."
-          find . -type f -iname '*.zip' -print
-
-          ZIP_FILE="$(find . -type f -iname '*ClipForge*AI*OnDevice*.zip' -print -quit)"
-
+          ZIP_FILE="$(find . -type f -iname '*CrashFix*.zip' -print -quit)"
           if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: ClipForge AI ZIP was not found."
+            echo "Crash-fix ZIP not found"
             exit 1
           fi
-
-          echo "Found ZIP: $ZIP_FILE"
+          echo "Using $ZIP_FILE"
           unzip -q "$ZIP_FILE" -d project
-
           test -f project/clipforge_src/settings.gradle.kts
-          echo "ClipForge AI source extracted successfully."
-
+          test -f project/clipforge_src/app/build.gradle.kts
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Build APK
+      - name: Build crash-fix APK
         working-directory: project/clipforge_src
         run: gradle --no-daemon --stacktrace assembleDebug
 
-      - name: Upload APK
+      - name: Upload crash-fix APK
         uses: actions/upload-artifact@v4
         with:
-          name: ClipForge-AI-debug-apk
+          name: ClipForge-AI-CrashFix-APK
           path: project/clipforge_src/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
