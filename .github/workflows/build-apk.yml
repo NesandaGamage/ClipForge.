@@ -36,9 +36,28 @@ jobs:
             "ndk;27.2.12479018" \
             "cmake;3.22.1"
 
+      
       - name: Extract ClipForge AI
+        shell: bash
         run: |
-          unzip -q ClipForge-AI-OnDevice-Project.zip -d project
+          set -euo pipefail
+
+          echo "Searching repository for ClipForge AI ZIP..."
+          find . -type f -iname '*.zip' -print
+
+          ZIP_FILE="$(find . -type f -iname '*ClipForge*AI*OnDevice*.zip' -print -quit)"
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: ClipForge AI ZIP was not found."
+            exit 1
+          fi
+
+          echo "Found ZIP: $ZIP_FILE"
+          unzip -q "$ZIP_FILE" -d project
+
+          test -f project/clipforge_src/settings.gradle.kts
+          echo "ClipForge AI source extracted successfully."
+
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
