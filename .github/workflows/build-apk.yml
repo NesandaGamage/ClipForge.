@@ -1,5 +1,5 @@
 
-name: Build ClipForge APK
+name: Build ClipForge AI APK
 
 on:
   workflow_dispatch:
@@ -29,11 +29,16 @@ jobs:
         with:
           packages: 'platform-tools'
 
-      - name: Install Android SDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Install Android SDK, NDK and CMake
+        run: |
+          sdkmanager "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "ndk;27.2.12479018" \
+            "cmake;3.22.1"
 
-      - name: Extract ClipForge
-        run: unzip -q ClipForge-GitHub-Actions-Project.zip -d project
+      - name: Extract ClipForge AI
+        run: |
+          unzip -q ClipForge-AI-OnDevice-Project.zip -d project
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -41,14 +46,13 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build APK
-        working-directory: project
-        run: gradle --no-daemon assembleDebug
+        working-directory: project/clipforge_src
+        run: gradle --no-daemon --stacktrace assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ClipForge-debug-apk
-          path: project/app/build/outputs/apk/debug/app-debug.apk
+          name: ClipForge-AI-debug-apk
+          path: project/clipforge_src/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
-          
