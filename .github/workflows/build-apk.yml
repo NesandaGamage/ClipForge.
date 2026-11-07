@@ -44,7 +44,9 @@ jobs:
           test -f project/clipforge_src/settings.gradle.kts
           test -f project/clipforge_src/app/build.gradle.kts
 
-      - name: Set up Gradle
+            - name: Apply updated ClipForge engine
+        run: |
+          cp OnDeviceClipEngine.kt project/clipforge_src/app/src/main/java/com/clipforge/app/OnDeviceClipEngine.kt
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
