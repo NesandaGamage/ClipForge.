@@ -1,3 +1,4 @@
+
 name: Build ClipForge APK
 
 on:
@@ -5,6 +6,7 @@ on:
   push:
     branches:
       - main
+      - clipforge-ai-ui-upgrade
 
 jobs:
   build:
@@ -36,17 +38,38 @@ jobs:
         run: |
           mkdir -p project
           ZIP_FILE=$(find . -maxdepth 1 -iname '*SmartException*Fix*.zip' | head -n 1)
+
           if [ -z "$ZIP_FILE" ]; then
-            echo "ClipForge ZIP not found"
+            echo "ClipForge source ZIP not found"
             exit 1
           fi
+
           unzip -q "$ZIP_FILE" -d project
+
           test -f project/clipforge_src/settings.gradle.kts
           test -f project/clipforge_src/app/build.gradle.kts
 
-            - name: Apply updated ClipForge engine
+      - name: Apply updated ClipForge engine
         run: |
-          cp OnDeviceClipEngine.kt project/clipforge_src/app/src/main/java/com/clipforge/app/OnDeviceClipEngine.kt
+          SOURCE="OnDeviceClipEngine.kt"
+          TARGET="project/clipforge_src/app/src/main/java/com/clipforge/app/OnDeviceClipEngine.kt"
+
+          if [ ! -f "$SOURCE" ]; then
+            echo "Updated OnDeviceClipEngine.kt not found"
+            exit 1
+          fi
+
+          if [ ! -f "$TARGET" ]; then
+            echo "Original Android engine file not found"
+            exit 1
+          fi
+
+          cp "$SOURCE" "$TARGET"
+
+          echo "Updated engine copied successfully"
+          test -s "$TARGET"
+
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
@@ -59,14 +82,23 @@ jobs:
 
       - name: Build APK
         working-directory: project/clipforge_src
-        run: gradle --refresh-dependencies --stacktrace assembleDebug
+        run: |
+          gradle --refresh-dependencies --stacktrace assembleDebug
 
       - name: Verify APK
         run: |
-          test -f project/clipforge_src/app/build/outputs/apk/debug/app-debug.apk
+          APK="project/clipforge_src/app/build/outputs/apk/debug/app-debug.apk"
+
+          if [ ! -s "$APK" ]; then
+            echo "APK build failed or APK is missing"
+            exit 1
+          fi
+
+          echo "APK successfully generated"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ClipForge-SmartException-Fixed-APK
+          name: ClipForge-AI-Upgrade-APK
           path: project/clipforge_src/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
