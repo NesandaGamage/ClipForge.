@@ -1,4 +1,3 @@
-
 package com.clipforge.app
 
 import android.content.Context
@@ -10,7 +9,6 @@ import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.ReturnCode
 import java.io.File
 import java.net.URL
-import java.net.URLConnection
 import java.util.Locale
 import kotlin.concurrent.thread
 import kotlin.math.abs
@@ -22,7 +20,7 @@ import kotlin.math.min
  *
  * Uses:
  * - Local Whisper.cpp transcription
- * - Optional YouTube Most Replayed heatmap data
+ * - YouTube Most Replayed heatmap data when available
  * - Transcript and replay-intensity ranking
  * - FFmpeg video export
  */
@@ -57,8 +55,7 @@ class OnDeviceClipEngine(private val context: Context) {
     )
 
     /**
-     * New API.
-     * Supply a YouTube URL when available.
+     * Creates one best clip.
      * The source video must already be imported into ClipForge.
      */
     fun createBestClip(
@@ -67,6 +64,7 @@ class OnDeviceClipEngine(private val context: Context) {
         listener: Listener
     ) {
         thread(name = "clipforge-best-clip") {
+
             val input = File(
                 context.cacheDir,
                 "clipforge_input_${System.currentTimeMillis()}.mp4"
@@ -80,12 +78,13 @@ class OnDeviceClipEngine(private val context: Context) {
             var output: File? = null
 
             try {
-                // Copy imported video into temporary storage.
                 progress(listener, "Preparing your video…")
 
                 context.contentResolver.openInputStream(source)?.use { stream ->
                     input.outputStream().use { stream.copyTo(it) }
-                } ?: throw IllegalStateException("Cannot read selected video")
+                } ?: throw IllegalStateException(
+                    "Cannot read selected video"
+                )
 
                 // Read video duration.
                 val retriever = MediaMetadataRetriever()
@@ -108,15 +107,25 @@ class OnDeviceClipEngine(private val context: Context) {
 
                 val duration = durationMs / 1000.0
 
-                // Try to retrieve YouTube replay information.
+                // Retrieve YouTube Most Replayed data.
                 var heatPoints = emptyList<HeatPoint>()
 
                 if (!youtubeUrl.isNullOrBlank()) {
-                    progress(listener, "Checking YouTube replay data…")
+                    progress(
+                        listener,
+                        "Checking YouTube replay data…"
+                    )
 
                     heatPoints = try {
-                        fetchYouTubeHeatmap(youtubeUrl, duration)
-                    } catch (_: Exception) {
+                        YouTubeHeatmapExtractor
+                            .fetch(youtubeUrl, duration)
+                            .map {
+                                HeatPoint(
+                                    time = it.time,
+                                    intensity = it.intensity
+                                )
+                            }
+                    } catch (e: Exception) {
                         emptyList()
                     }
                 }
@@ -129,20 +138,30 @@ class OnDeviceClipEngine(private val context: Context) {
                 } else {
                     progress(
                         listener,
-                        "YouTube replay data unavailable. Using local AI analysis…"
+                        "Replay data unavailable. Using local AI analysis…"
                     )
                 }
 
-                // Download the Whisper model if necessary.
-                progress(listener, "Preparing the free Whisper model…")
+                // Prepare Whisper model.
+                progress(
+                    listener,
+                    "Preparing the free Whisper model…"
+                )
+
                 ensureModel()
 
                 // Extract audio into 30-second WAV chunks.
-                progress(listener, "Extracting audio locally…")
+                progress(
+                    listener,
+                    "Extracting audio locally…"
+                )
 
                 chunksDir.mkdirs()
 
-                val chunkPattern = File(chunksDir, "audio_%03d.wav")
+                val chunkPattern = File(
+                    chunksDir,
+                    "audio_%03d.wav"
+                )
 
                 val audioCommand =
                     "-y -i ${q(input.absolutePath)} " +
@@ -154,7 +173,8 @@ class OnDeviceClipEngine(private val context: Context) {
 
                 if (!ReturnCode.isSuccess(audioSession.returnCode)) {
                     throw IllegalStateException(
-                        "Audio extraction failed: ${audioSession.failStackTrace}"
+                        "Audio extraction failed: " +
+                            audioSession.failStackTrace
                     )
                 }
 
@@ -169,7 +189,11 @@ class OnDeviceClipEngine(private val context: Context) {
                 }
 
                 // Run local Whisper transcription.
-                progress(listener, "Loading Whisper AI on this device…")
+                progress(
+                    listener,
+                    "Loading Whisper AI on this device…"
+                )
+
                 WhisperBridge.ensureLoaded()
 
                 val segments = mutableListOf<Segment>()
@@ -181,10 +205,11 @@ class OnDeviceClipEngine(private val context: Context) {
                         "Transcribing audio ${index + 1}/${wavChunks.size}…"
                     )
 
-                    val transcript = WhisperBridge.transcribeNative(
-                        modelFile.absolutePath,
-                        wav.absolutePath
-                    )
+                    val transcript =
+                        WhisperBridge.transcribeNative(
+                            modelFile.absolutePath,
+                            wav.absolutePath
+                        )
 
                     if (transcript.startsWith("ERROR")) {
                         throw IllegalStateException(
@@ -195,9 +220,11 @@ class OnDeviceClipEngine(private val context: Context) {
                     val offset = index * 30.0
 
                     transcript.lineSequence().forEach { line ->
+
                         val parts = line.split('\t', limit = 3)
 
                         if (parts.size == 3) {
+
                             val start =
                                 offset +
                                 (parts[0].toLongOrNull() ?: 0L) / 1000.0
@@ -229,8 +256,11 @@ class OnDeviceClipEngine(private val context: Context) {
                     )
                 }
 
-                // Generate candidate moments and rank them.
-                progress(listener, "Finding the strongest moment…")
+                // Generate and rank candidate moments.
+                progress(
+                    listener,
+                    "Finding the strongest moment…"
+                )
 
                 val candidates = generateCandidates(
                     segments,
@@ -245,7 +275,9 @@ class OnDeviceClipEngine(private val context: Context) {
                 }
 
                 val best = candidates.maxByOrNull { it.score }
-                    ?: throw IllegalStateException("No suitable clip found")
+                    ?: throw IllegalStateException(
+                        "No suitable clip found"
+                    )
 
                 val clipDuration = best.end - best.start
 
@@ -255,7 +287,7 @@ class OnDeviceClipEngine(private val context: Context) {
                     )
                 }
 
-                // Export exactly one clip.
+                // Export one vertical clip.
                 progress(
                     listener,
                     "Creating your best clip (${clipDuration.toInt()} seconds)…"
@@ -281,12 +313,14 @@ class OnDeviceClipEngine(private val context: Context) {
 
                 val exportSession = FFmpegKit.execute(command)
 
-                if (!ReturnCode.isSuccess(exportSession.returnCode) ||
+                if (
+                    !ReturnCode.isSuccess(exportSession.returnCode) ||
                     !output.exists() ||
                     output.length() == 0L
                 ) {
                     throw IllegalStateException(
-                        "Video export failed: ${exportSession.failStackTrace}"
+                        "Video export failed: " +
+                            exportSession.failStackTrace
                     )
                 }
 
@@ -299,14 +333,16 @@ class OnDeviceClipEngine(private val context: Context) {
                 }
 
             } catch (e: Throwable) {
+
                 output?.delete()
 
                 Handler(Looper.getMainLooper()).post {
                     listener.onError(
                         "${e.javaClass.simpleName}: " +
-                        (e.message ?: "AI processing failed")
+                            (e.message ?: "AI processing failed")
                     )
                 }
+
             } finally {
                 input.delete()
                 chunksDir.deleteRecursively()
@@ -316,7 +352,7 @@ class OnDeviceClipEngine(private val context: Context) {
 
     /**
      * Compatibility with the previous MainActivity.
-     * This now returns one clip, not five.
+     * This returns one clip, not five.
      */
     @Deprecated("Use createBestClip instead")
     fun createFiveClips(
@@ -324,88 +360,6 @@ class OnDeviceClipEngine(private val context: Context) {
         listener: Listener
     ) {
         createBestClip(source, null, listener)
-    }
-
-    /**
-     * Attempts to retrieve YouTube's Most Replayed heatmap.
-     *
-     * This is an unofficial best-effort page-data parser.
-     * YouTube may change its response or block automated requests.
-     */
-    private fun fetchYouTubeHeatmap(
-        videoUrl: String,
-        videoDuration: Double
-    ): List<HeatPoint> {
-
-        val connection: URLConnection =
-            URL(videoUrl).openConnection()
-
-        connection.connectTimeout = 12000
-        connection.readTimeout = 15000
-
-        connection.setRequestProperty(
-            "User-Agent",
-            "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 " +
-            "(KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
-        )
-
-        connection.setRequestProperty(
-            "Accept-Language",
-            "en-US,en;q=0.9"
-        )
-
-        val html = connection.getInputStream()
-            .bufferedReader()
-            .use { it.readText() }
-
-        if (html.isBlank()) return emptyList()
-
-        val rendererPattern = Regex(
-            "\"heatMarkerRenderer\"\\s*:\\s*\\{([^{}]{0,3000})\\}"
-        )
-
-        val intensityPattern = Regex(
-            "\"heatMarkerIntensityScoreNormalized\"\\s*:\\s*([0-9.]+)"
-        )
-
-        val timePattern = Regex(
-            "\"timeRangeStartMillis\"\\s*:\\s*([0-9]+)"
-        )
-
-        val points = mutableListOf<HeatPoint>()
-
-        rendererPattern.findAll(html).forEach { match ->
-
-            val renderer = match.groupValues[1]
-
-            val intensity = intensityPattern
-                .find(renderer)
-                ?.groupValues
-                ?.get(1)
-                ?.toDoubleOrNull()
-
-            val timeMs = timePattern
-                .find(renderer)
-                ?.groupValues
-                ?.get(1)
-                ?.toLongOrNull()
-
-            if (intensity != null && timeMs != null) {
-                val time = timeMs / 1000.0
-
-                if (time in 0.0..videoDuration) {
-                    points.add(
-                        HeatPoint(
-                            time,
-                            intensity.coerceIn(0.0, 1.0)
-                        )
-                    )
-                }
-            }
-        }
-
-        return points.distinctBy { it.time }
-            .sortedBy { it.time }
     }
 
     /**
@@ -431,7 +385,10 @@ class OnDeviceClipEngine(private val context: Context) {
             60.0
         )
 
-        fun addCandidate(startValue: Double, endValue: Double) {
+        fun addCandidate(
+            startValue: Double,
+            endValue: Double
+        ) {
 
             val start = startValue.coerceIn(0.0, duration)
             val end = endValue.coerceIn(0.0, duration)
@@ -529,7 +486,7 @@ class OnDeviceClipEngine(private val context: Context) {
             }
         }
 
-        // Timeline fallback: prevents missing sections.
+        // Timeline fallback.
         val fallbackLength = min(20.0, maxLength)
         val step = max(3.0, fallbackLength / 3.0)
 
@@ -540,6 +497,7 @@ class OnDeviceClipEngine(private val context: Context) {
                 position,
                 min(duration, position + fallbackLength)
             )
+
             position += step
         }
 
@@ -548,7 +506,7 @@ class OnDeviceClipEngine(private val context: Context) {
 
     /**
      * Measures replay intensity inside a candidate window.
-     * Uses normalized values, not actual view counts.
+     * These are normalized scores, not actual replay counts.
      */
     private fun calculateReplayScore(
         start: Double,
@@ -673,8 +631,6 @@ class OnDeviceClipEngine(private val context: Context) {
                 t.contains("however")
             ) 1.5 else 0.0
 
-        // Reward a complete ending and discourage
-        // clips that begin with a continuation.
         val endingScore =
             if (
                 t.endsWith(".") ||
@@ -701,6 +657,9 @@ class OnDeviceClipEngine(private val context: Context) {
             beginningScore
     }
 
+    /**
+     * Downloads the free Whisper tiny model when necessary.
+     */
     private fun ensureModel() {
 
         if (
