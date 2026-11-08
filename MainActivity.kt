@@ -1,3 +1,4 @@
+
 package com.clipforge.app
 
 import android.app.Activity
@@ -102,10 +103,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         brandText.addView(title("ClipForge", 21f))
-
-        brandText.addView(
-            smallText("AI VIDEO CLIP EDITOR")
-        )
+        brandText.addView(smallText("AI VIDEO CLIP EDITOR"))
 
         brandRow.addView(
             brandText,
@@ -755,7 +753,7 @@ class MainActivity : AppCompatActivity() {
     private fun editText(value: String) =
         EditText(this).apply {
             setText(value)
-            singleLine = true
+            setSingleLine(true)
 
             inputType =
                 android.text.InputType.TYPE_CLASS_NUMBER or
