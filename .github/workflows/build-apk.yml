@@ -52,6 +52,48 @@ jobs:
           test -f project/clipforge_src/settings.gradle.kts
           test -f project/clipforge_src/app/build.gradle.kts
 
+      - name: Install ClipForge logo assets
+        run: |
+          LOGO_ZIP="ClipForge_Logo_Assets.zip"
+
+          if [ ! -f "$LOGO_ZIP" ]; then
+            echo "ERROR: Logo ZIP not found"
+            exit 1
+          fi
+
+          unzip -q "$LOGO_ZIP" -d logo_assets
+
+          RES_DIR="project/clipforge_src/app/src/main/res"
+          mkdir -p "$RES_DIR"
+
+          for DIR in drawable drawable-nodpi mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi mipmap-anydpi-v26 values; do
+            if [ -d "logo_assets/$DIR" ]; then
+              mkdir -p "$RES_DIR/$DIR"
+              cp -R "logo_assets/$DIR/." "$RES_DIR/$DIR/"
+            fi
+          done
+
+          MANIFEST="project/clipforge_src/app/src/main/AndroidManifest.xml"
+
+          python3 - "$MANIFEST" <<'PY'
+          import sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          content = path.read_text()
+
+          content = content.replace(
+              '<application ',
+              '<application android:icon="@mipmap/ic_launcher" '
+              'android:roundIcon="@mipmap/ic_launcher_round" ',
+              1
+          )
+
+          path.write_text(content)
+          PY
+
+          echo "ClipForge launcher icon installed."
+
       - name: Apply updated Kotlin files
         run: |
           ENGINE_SOURCE="OnDeviceClipEngine.kt"
