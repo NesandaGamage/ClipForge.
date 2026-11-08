@@ -1,12 +1,16 @@
-
 package com.clipforge.app
 
 import android.app.Activity
 import android.content.ContentValues
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
+import android.view.Gravity
+import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.MediaItem
@@ -31,6 +35,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var exportButton: Button
     private lateinit var aiButton: Button
     private lateinit var ytInput: EditText
+    private lateinit var progressBar: ProgressBar
+
+    private val pageColor = Color.rgb(247, 248, 252)
+    private val cardColor = Color.WHITE
+    private val primaryColor = Color.rgb(91, 83, 220)
+    private val textColor = Color.rgb(32, 35, 48)
+    private val mutedColor = Color.rgb(112, 117, 132)
+    private val borderColor = Color.rgb(229, 231, 239)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,93 +53,196 @@ class MainActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(24), dp(20), dp(20))
-            setBackgroundColor(0xFF101018.toInt())
+            setBackgroundColor(pageColor)
         }
 
-        val scroll = ScrollView(this)
+        val scroll = ScrollView(this).apply {
+            clipToPadding = false
+            setPadding(dp(18), dp(22), dp(18), dp(20))
+        }
+
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
 
         scroll.addView(content)
-        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(
+            scroll,
+            LinearLayout.LayoutParams(-1, 0, 1f)
+        )
 
-        content.addView(TextView(this).apply {
-            text = "ClipForge"
-            textSize = 30f
-            setTextColor(0xFFFFFFFF.toInt())
-            setTypeface(null, android.graphics.Typeface.BOLD)
-        })
+        // Header
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 0, 0, dp(22))
+        }
 
-        content.addView(TextView(this).apply {
-            text = "Turn long videos into shareable clips"
-            textSize = 14f
-            setTextColor(0xFFB9B7C7.toInt())
-            setPadding(0, dp(4), 0, dp(20))
-        })
+        val brandRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
 
-        // YouTube section
-        val ytCard = section(content, "YouTube link")
+        val logo = TextView(this).apply {
+            text = "CF"
+            textSize = 17f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            background = rounded(primaryColor, 14)
+        }
+
+        brandRow.addView(
+            logo,
+            LinearLayout.LayoutParams(dp(44), dp(44))
+        )
+
+        val brandText = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), 0, 0, 0)
+        }
+
+        brandText.addView(title("ClipForge", 21f))
+
+        brandText.addView(
+            smallText("AI VIDEO CLIP EDITOR")
+        )
+
+        brandRow.addView(
+            brandText,
+            LinearLayout.LayoutParams(0, -2, 1f)
+        )
+
+        val version = TextView(this).apply {
+            text = "BETA"
+            textSize = 10f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(primaryColor)
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            background = rounded(
+                Color.rgb(238, 237, 255),
+                20
+            )
+        }
+
+        brandRow.addView(version)
+        header.addView(brandRow)
+
+        val heading = title(
+            "Create your next\nbest moment.",
+            29f
+        ).apply {
+            setPadding(0, dp(25), 0, dp(8))
+        }
+
+        header.addView(heading)
+
+        header.addView(
+            bodyText(
+                "Turn long videos into short, shareable clips with on-device AI."
+            )
+        )
+
+        content.addView(header)
+
+        // YouTube source
+        val ytCard = sectionCard(
+            content,
+            "YOUTUBE SOURCE",
+            "Use the original video link to look for replay data."
+        )
 
         ytInput = EditText(this).apply {
-            hint = "Paste a YouTube URL"
+            hint = "Paste YouTube video URL"
             setSingleLine(true)
-            setTextColor(0xFFFFFFFF.toInt())
-            setHintTextColor(0xFF898797.toInt())
-            setPadding(dp(12), dp(10), dp(12), dp(10))
-            setBackgroundColor(0xFF252432.toInt())
+            textSize = 14f
+            setTextColor(textColor)
+            setHintTextColor(mutedColor)
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = inputBackground()
         }
 
         ytCard.addView(ytInput, matchWrap())
 
-        val ytButton = button("Open YouTube video")
+        val ytButton = secondaryButton("Open YouTube video")
         ytCard.addView(ytButton, matchWrap())
 
         ytButton.setOnClickListener {
+
             val url = ytInput.text.toString().trim()
 
-            if (!url.contains("youtube.com/") &&
+            if (
+                !url.contains("youtube.com/") &&
                 !url.contains("youtu.be/")
             ) {
                 toast("Enter a valid YouTube URL")
             } else {
-                startActivity(
-                    Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                )
+                try {
+                    startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                    )
 
-                status.text =
-                    "Import an authorized video file before editing."
+                    status.text =
+                        "Import an authorized video file before editing."
+
+                } catch (_: Exception) {
+                    toast("Could not open this YouTube link")
+                }
             }
         }
 
-        ytCard.addView(TextView(this).apply {
-            text =
-                "Paste a YouTube URL to help ClipForge look for replay " +
-                "data. You must still import an authorized video file " +
-                "below. ClipForge does not download YouTube videos."
+        // Import video
+        val sourceCard = sectionCard(
+            content,
+            "01  |  YOUR VIDEO",
+            "Choose a video stored on your phone."
+        )
 
-            textSize = 12f
-            setTextColor(0xFFB9B7C7.toInt())
-            setPadding(0, dp(8), 0, 0)
-        })
+        val chooseButton = primaryButton("＋  Import video")
+        sourceCard.addView(chooseButton, matchWrap())
 
-        // Video import
-        val sourceCard = section(content, "1. Choose a video")
-
-        val choose = button("＋  Import video from phone")
-        sourceCard.addView(choose, matchWrap())
-
-        videoLabel = TextView(this).apply {
-            text = "No video selected"
-            textSize = 13f
-            setTextColor(0xFFB9B7C7.toInt())
-            setPadding(0, dp(10), 0, 0)
+        val videoPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            background = rounded(
+                Color.rgb(247, 248, 252),
+                12,
+                borderColor
+            )
         }
 
-        sourceCard.addView(videoLabel)
+        val videoIcon = TextView(this).apply {
+            text = "▶"
+            textSize = 20f
+            gravity = Gravity.CENTER
+            setTextColor(primaryColor)
+            background = rounded(
+                Color.rgb(238, 237, 255),
+                10
+            )
+        }
 
-        choose.setOnClickListener {
+        videoPanel.addView(
+            videoIcon,
+            LinearLayout.LayoutParams(dp(42), dp(42))
+        )
+
+        videoLabel = bodyText("No video selected").apply {
+            setPadding(dp(12), 0, 0, 0)
+        }
+
+        videoPanel.addView(
+            videoLabel,
+            LinearLayout.LayoutParams(0, -2, 1f)
+        )
+
+        val videoParams = matchWrap().apply {
+            topMargin = dp(12)
+        }
+
+        sourceCard.addView(videoPanel, videoParams)
+
+        chooseButton.setOnClickListener {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
                 type = "video/*"
@@ -136,30 +251,45 @@ class MainActivity : AppCompatActivity() {
             startActivityForResult(intent, pickVideo)
         }
 
-        // AI clip selection
-        val aiCard = section(content, "2. AI best clip selection")
+        // AI selection
+        val aiCard = sectionCard(
+            content,
+            "02  |  AI CLIP FINDER",
+            "Let ClipForge identify an interesting moment."
+        )
 
-        aiCard.addView(TextView(this).apply {
-            text =
-                "ClipForge analyses speech using the free Whisper AI " +
-                "model on your phone. It looks for interesting moments " +
-                "and, when available, YouTube Most Replayed data. " +
-                "It selects one clip between 8 and 60 seconds."
+        aiCard.addView(
+            bodyText(
+                "Whisper analyses speech locally on your phone. " +
+                "YouTube Most Replayed data can also help rank " +
+                "the strongest moments when available."
+            ),
+            matchWrap()
+        )
 
-            textSize = 12f
-            setTextColor(0xFFB9B7C7.toInt())
-            setPadding(0, 0, 0, dp(8))
-        })
+        val aiInfo = TextView(this).apply {
+            text = "ONE BEST CLIP  •  8–60 SECONDS"
+            textSize = 10f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(primaryColor)
+            setPadding(0, dp(14), 0, dp(4))
+        }
 
-        aiButton = button("✨  Find my best clip")
+        aiCard.addView(aiInfo)
+
+        aiButton = primaryButton("Find My Best Clip")
         aiCard.addView(aiButton, matchWrap())
 
         aiButton.setOnClickListener {
             createAiClip()
         }
 
-        // Manual trimming
-        val editCard = section(content, "3. Manual clip trimming")
+        // Manual editing
+        val editCard = sectionCard(
+            content,
+            "03  |  MANUAL TRIMMING",
+            "Choose exactly where your clip should begin and end."
+        )
 
         editCard.addView(label("Start time (seconds)"))
 
@@ -171,50 +301,75 @@ class MainActivity : AppCompatActivity() {
         endInput = editText("")
         editCard.addView(endInput, matchWrap())
 
-        editCard.addView(TextView(this).apply {
-            text =
-                "Output: MP4 (H.264 video + AAC audio), " +
-                "source resolution and original aspect ratio."
+        editCard.addView(
+            bodyText(
+                "Manual export keeps the source video's resolution " +
+                "and original aspect ratio."
+            ).apply {
+                setPadding(0, dp(12), 0, 0)
+            }
+        )
 
-            textSize = 12f
-            setTextColor(0xFFB9B7C7.toInt())
-            setPadding(0, dp(12), 0, 0)
-        })
+        // Export
+        val exportCard = sectionCard(
+            content,
+            "04  |  EXPORT",
+            "Save your finished clip to your phone."
+        )
 
-        // Manual export
-        val exportCard = section(content, "4. Manual export")
-
-        exportButton = button("Export MP4")
+        exportButton = secondaryButton("Export MP4")
         exportCard.addView(exportButton, matchWrap())
 
         exportButton.setOnClickListener {
             exportClip()
         }
 
-        // Status
-        status = TextView(this).apply {
-            text = "Ready. Select a video to begin."
-            textSize = 13f
-            setTextColor(0xFFB9B7C7.toInt())
-            setPadding(0, dp(12), 0, dp(8))
+        // Processing status
+        val statusCard = sectionCard(
+            content,
+            "PROCESSING STATUS",
+            "Your current ClipForge activity."
+        )
+
+        progressBar = ProgressBar(this).apply {
+            isIndeterminate = true
+            visibility = View.GONE
         }
 
-        content.addView(status)
+        statusCard.addView(
+            progressBar,
+            LinearLayout.LayoutParams(
+                dp(28),
+                dp(28)
+            ).apply {
+                bottomMargin = dp(8)
+            }
+        )
 
-        content.addView(TextView(this).apply {
-            text =
-                "Your source video stays on your device. " +
-                "Exported clips are saved to Movies/ClipForge."
+        status = bodyText(
+            "Ready. Import a video to get started."
+        )
 
-            textSize = 11f
-            setTextColor(0xFF898797.toInt())
-            setPadding(0, dp(12), 0, dp(16))
-        })
+        statusCard.addView(status)
+
+        // Footer
+        content.addView(
+            TextView(this).apply {
+                text =
+                    "Your source video stays on your device.\n" +
+                    "Exported clips are saved in Movies/ClipForge."
+
+                textSize = 11f
+                setTextColor(mutedColor)
+                gravity = Gravity.CENTER
+                setPadding(0, dp(20), 0, dp(12))
+            }
+        )
 
         setContentView(root)
     }
 
-    // AI creates one best clip
+    // AI clip generation
     private fun createAiClip() {
 
         val uri = selectedUri ?: run {
@@ -223,6 +378,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         aiButton.isEnabled = false
+        progressBar.visibility = View.VISIBLE
 
         status.text =
             "Starting AI analysis… Keep ClipForge open while it works."
@@ -244,71 +400,77 @@ class MainActivity : AppCompatActivity() {
 
                     override fun onComplete(files: List<File>) {
 
-                        try {
+                        runOnUiThread {
 
-                            val file = files.firstOrNull()
-                                ?: throw IllegalStateException(
-                                    "AI did not produce a clip"
-                                )
+                            try {
 
-                            val values = ContentValues().apply {
-                                put(
-                                    MediaStore.Video.Media.DISPLAY_NAME,
-                                    "ClipForge_Best_${System.currentTimeMillis()}.mp4"
-                                )
+                                val file = files.firstOrNull()
+                                    ?: throw IllegalStateException(
+                                        "AI did not produce a clip"
+                                    )
 
-                                put(
-                                    MediaStore.Video.Media.MIME_TYPE,
-                                    "video/mp4"
-                                )
+                                val values = ContentValues().apply {
+                                    put(
+                                        MediaStore.Video.Media.DISPLAY_NAME,
+                                        "ClipForge_Best_${System.currentTimeMillis()}.mp4"
+                                    )
 
-                                put(
-                                    MediaStore.Video.Media.RELATIVE_PATH,
-                                    "Movies/ClipForge"
-                                )
-                            }
+                                    put(
+                                        MediaStore.Video.Media.MIME_TYPE,
+                                        "video/mp4"
+                                    )
 
-                            val outUri = contentResolver.insert(
-                                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-                                values
-                            ) ?: throw IllegalStateException(
-                                "Could not create Gallery entry"
-                            )
-
-                            contentResolver.openOutputStream(
-                                outUri,
-                                "w"
-                            )!!.use { output ->
-
-                                file.inputStream().use { input ->
-                                    input.copyTo(output)
+                                    put(
+                                        MediaStore.Video.Media.RELATIVE_PATH,
+                                        "Movies/ClipForge"
+                                    )
                                 }
+
+                                val outUri = contentResolver.insert(
+                                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                                    values
+                                ) ?: throw IllegalStateException(
+                                    "Could not create Gallery entry"
+                                )
+
+                                contentResolver.openOutputStream(
+                                    outUri,
+                                    "w"
+                                )!!.use { output ->
+
+                                    file.inputStream().use { input ->
+                                        input.copyTo(output)
+                                    }
+                                }
+
+                                file.delete()
+
+                                status.text =
+                                    "Your best AI clip is saved to Movies/ClipForge."
+
+                                toast("Best clip saved successfully!")
+
+                            } catch (e: Exception) {
+
+                                status.text =
+                                    "Could not save clip: ${e.message}"
+
+                            } finally {
+                                aiButton.isEnabled = true
+                                progressBar.visibility = View.GONE
                             }
-
-                            file.delete()
-
-                            status.text =
-                                "Done! Your best AI clip is saved to Movies/ClipForge."
-
-                            toast("Best clip saved successfully!")
-
-                        } catch (e: Exception) {
-
-                            status.text =
-                                "Could not save clip: ${e.message}"
-
-                        } finally {
-                            aiButton.isEnabled = true
                         }
                     }
 
                     override fun onError(message: String) {
 
                         runOnUiThread {
+
                             status.text =
                                 "AI processing failed: $message"
 
                             aiButton.isEnabled = true
+                            progressBar.visibility = View.GONE
                         }
                     }
                 }
@@ -320,6 +482,7 @@ class MainActivity : AppCompatActivity() {
                 "Could not start AI: ${t.javaClass.simpleName}: ${t.message}"
 
             aiButton.isEnabled = true
+            progressBar.visibility = View.GONE
         }
     }
 
@@ -415,14 +578,22 @@ class MainActivity : AppCompatActivity() {
                             "Export complete! Saved to Movies/ClipForge."
 
                         exportButton.isEnabled = true
+                        progressBar.visibility = View.GONE
+                        transformer = null
+
                         toast("MP4 saved to Movies/ClipForge")
 
                     } catch (e: Exception) {
+
+                        contentResolver.delete(outputUri, null, null)
+                        tempFile.delete()
 
                         status.text =
                             "Could not save exported MP4: ${e.message}"
 
                         exportButton.isEnabled = true
+                        progressBar.visibility = View.GONE
+                        transformer = null
                     }
                 }
 
@@ -433,11 +604,14 @@ class MainActivity : AppCompatActivity() {
                 ) {
 
                     tempFile.delete()
+                    contentResolver.delete(outputUri, null, null)
 
                     status.text =
                         "Export failed: ${exportException.message}"
 
                     exportButton.isEnabled = true
+                    progressBar.visibility = View.GONE
+                    transformer = null
                 }
             })
             .build()
@@ -445,21 +619,29 @@ class MainActivity : AppCompatActivity() {
         try {
 
             exportButton.isEnabled = false
+            progressBar.visibility = View.VISIBLE
 
             status.text =
-                "Exporting clip… keep ClipForge open until it finishes."
+                "Exporting clip… Keep ClipForge open until it finishes."
 
             transformer!!.start(edited, tempFile.absolutePath)
 
         } catch (e: Exception) {
 
+            tempFile.delete()
+            contentResolver.delete(outputUri, null, null)
+
             exportButton.isEnabled = true
+            progressBar.visibility = View.GONE
 
             status.text =
                 "Export could not start: ${e.message}"
+
+            transformer = null
         }
     }
 
+    // Video picker result
     override fun onActivityResult(
         requestCode: Int,
         resultCode: Int,
@@ -468,7 +650,8 @@ class MainActivity : AppCompatActivity() {
 
         super.onActivityResult(requestCode, resultCode, data)
 
-        if (requestCode == pickVideo &&
+        if (
+            requestCode == pickVideo &&
             resultCode == Activity.RESULT_OK
         ) {
 
@@ -485,8 +668,7 @@ class MainActivity : AppCompatActivity() {
                     // Temporary permission may be provided.
                 }
 
-                videoLabel.text =
-                    "Selected: ${uri.lastPathSegment ?: "Video"}"
+                videoLabel.text = "Video selected successfully"
 
                 status.text =
                     "Video ready. Find your best clip or use manual trimming."
@@ -494,65 +676,144 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun section(
+    // UI components
+    private fun sectionCard(
         parent: LinearLayout,
-        title: String
+        heading: String,
+        description: String
     ): LinearLayout {
 
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(14), dp(14), dp(14))
-            setBackgroundColor(0xFF1B1A25.toInt())
+            setPadding(dp(16), dp(17), dp(16), dp(17))
+            background = rounded(cardColor, 18, borderColor)
+            elevation = dp(2).toFloat()
         }
 
-        val lp = LinearLayout.LayoutParams(-1, -2).apply {
-            bottomMargin = dp(14)
-        }
+        parent.addView(
+            card,
+            LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = dp(15)
+            }
+        )
 
-        parent.addView(card, lp)
+        card.addView(
+            TextView(this).apply {
+                text = heading
+                textSize = 14f
+                setTypeface(null, Typeface.BOLD)
+                setTextColor(textColor)
+            }
+        )
 
-        card.addView(TextView(this).apply {
-            text = title
-            textSize = 16f
-            setTextColor(0xFFFFFFFF.toInt())
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setPadding(0, 0, 0, dp(10))
-        })
+        card.addView(
+            TextView(this).apply {
+                text = description
+                textSize = 12f
+                setTextColor(mutedColor)
+                setPadding(0, dp(5), 0, dp(9))
+            }
+        )
 
         return card
     }
 
-    private fun label(value: String) =
+    private fun title(value: String, size: Float) =
+        TextView(this).apply {
+            text = value
+            textSize = size
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(textColor)
+        }
+
+    private fun smallText(value: String) =
+        TextView(this).apply {
+            text = value
+            textSize = 9f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(mutedColor)
+            setPadding(0, dp(3), 0, 0)
+        }
+
+    private fun bodyText(value: String) =
         TextView(this).apply {
             text = value
             textSize = 13f
-            setTextColor(0xFFCAC8D5.toInt())
-            setPadding(0, dp(8), 0, dp(4))
+            setTextColor(mutedColor)
+            setLineSpacing(dp(3).toFloat(), 1f)
+        }
+
+    private fun label(value: String) =
+        TextView(this).apply {
+            text = value
+            textSize = 12f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(textColor)
+            setPadding(0, dp(13), 0, dp(4))
         }
 
     private fun editText(value: String) =
         EditText(this).apply {
             setText(value)
+            singleLine = true
 
             inputType =
                 android.text.InputType.TYPE_CLASS_NUMBER or
                 android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
 
-            setTextColor(0xFFFFFFFF.toInt())
-            setHintTextColor(0xFF898797.toInt())
-            setPadding(dp(12), dp(8), dp(12), dp(8))
-            setBackgroundColor(0xFF252432.toInt())
+            textSize = 14f
+            setTextColor(textColor)
+            setHintTextColor(mutedColor)
+            setPadding(dp(14), dp(11), dp(14), dp(11))
+            background = inputBackground()
         }
 
-    private fun button(textValue: String) =
+    private fun primaryButton(value: String) =
         Button(this).apply {
-            text = textValue
+            text = value
             isAllCaps = false
+            textSize = 14f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            background = rounded(primaryColor, 13)
+            minimumHeight = dp(50)
+            stateListAnimator = null
         }
+
+    private fun secondaryButton(value: String) =
+        Button(this).apply {
+            text = value
+            isAllCaps = false
+            textSize = 13f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(primaryColor)
+            background = rounded(
+                Color.rgb(238, 237, 255),
+                13
+            )
+            minimumHeight = dp(48)
+            stateListAnimator = null
+        }
+
+    private fun inputBackground() =
+        rounded(Color.rgb(249, 250, 253), 12, borderColor)
+
+    private fun rounded(
+        color: Int,
+        radius: Int,
+        strokeColor: Int? = null
+    ) = GradientDrawable().apply {
+        setColor(color)
+        cornerRadius = dp(radius).toFloat()
+
+        if (strokeColor != null) {
+            setStroke(dp(1), strokeColor)
+        }
+    }
 
     private fun matchWrap() =
         LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(6)
+            topMargin = dp(5)
         }
 
     private fun dp(value: Int) =
