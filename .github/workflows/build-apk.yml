@@ -37,12 +37,15 @@ jobs:
       - name: Find and extract project ZIP
         run: |
           mkdir -p project
+
           ZIP_FILE=$(find . -maxdepth 1 -iname '*SmartException*Fix*.zip' | head -n 1)
 
           if [ -z "$ZIP_FILE" ]; then
             echo "ClipForge source ZIP not found"
             exit 1
           fi
+
+          echo "Using source ZIP: $ZIP_FILE"
 
           unzip -q "$ZIP_FILE" -d project
 
@@ -53,21 +56,49 @@ jobs:
         run: |
           ENGINE_SOURCE="OnDeviceClipEngine.kt"
           ACTIVITY_SOURCE="MainActivity.kt"
+          HEATMAP_SOURCE="YouTubeHeatmapExtractor.kt"
 
-          ENGINE_TARGET="project/clipforge_src/app/src/main/java/com/clipforge/app/OnDeviceClipEngine.kt"
-          ACTIVITY_TARGET="project/clipforge_src/app/src/main/java/com/clipforge/app/MainActivity.kt"
+          SOURCE_DIR="project/clipforge_src/app/src/main/java/com/clipforge/app"
 
-          for FILE in "$ENGINE_SOURCE" "$ACTIVITY_SOURCE" "$ENGINE_TARGET" "$ACTIVITY_TARGET"; do
+          ENGINE_TARGET="$SOURCE_DIR/OnDeviceClipEngine.kt"
+          ACTIVITY_TARGET="$SOURCE_DIR/MainActivity.kt"
+          HEATMAP_TARGET="$SOURCE_DIR/YouTubeHeatmapExtractor.kt"
+
+          echo "Checking updated Kotlin source files..."
+
+          for FILE in "$ENGINE_SOURCE" "$ACTIVITY_SOURCE" "$HEATMAP_SOURCE"; do
             if [ ! -s "$FILE" ]; then
-              echo "Required file missing or empty: $FILE"
+              echo "ERROR: Required source file missing or empty: $FILE"
               exit 1
             fi
           done
 
+          if [ ! -s "$ENGINE_TARGET" ]; then
+            echo "ERROR: Original OnDeviceClipEngine.kt missing"
+            exit 1
+          fi
+
+          if [ ! -s "$ACTIVITY_TARGET" ]; then
+            echo "ERROR: Original MainActivity.kt missing"
+            exit 1
+          fi
+
+          mkdir -p "$SOURCE_DIR"
+
           cp "$ENGINE_SOURCE" "$ENGINE_TARGET"
           cp "$ACTIVITY_SOURCE" "$ACTIVITY_TARGET"
+          cp "$HEATMAP_SOURCE" "$HEATMAP_TARGET"
 
-          echo "Both updated Kotlin files copied successfully."
+          echo "Checking heatmap extractor package..."
+
+          head -n 5 "$HEATMAP_TARGET"
+
+          if ! grep -q '^package com\.clipforge\.app$' "$HEATMAP_TARGET"; then
+            echo "ERROR: Incorrect package declaration in YouTubeHeatmapExtractor.kt"
+            exit 1
+          fi
+
+          echo "All three Kotlin files copied successfully."
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -78,7 +109,11 @@ jobs:
         working-directory: project/clipforge_src
         run: |
           gradle :app:dependencies --configuration debugRuntimeClasspath > dependencies.txt
-          grep -i "smart-exception-java" dependencies.txt
+
+          if ! grep -i "smart-exception-java" dependencies.txt; then
+            echo "ERROR: Smart Exception dependency not found"
+            exit 1
+          fi
 
       - name: Build APK
         working-directory: project/clipforge_src
