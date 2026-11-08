@@ -83,13 +83,13 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
         }
 
-        val logo = TextView(this).apply {
-            text = "CF"
-            textSize = 17f
-            setTypeface(null, Typeface.BOLD)
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            background = rounded(primaryColor, 14)
+        // ClipForge image logo
+        val logo = ImageView(this).apply {
+            setImageResource(R.drawable.clipforge_logo)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            contentDescription = "ClipForge logo"
+            background = rounded(Color.WHITE, 12, borderColor)
+            setPadding(dp(3), dp(3), dp(3), dp(3))
         }
 
         brandRow.addView(
