@@ -49,25 +49,25 @@ jobs:
           test -f project/clipforge_src/settings.gradle.kts
           test -f project/clipforge_src/app/build.gradle.kts
 
-      - name: Apply updated ClipForge engine
+      - name: Apply updated Kotlin files
         run: |
-          SOURCE="OnDeviceClipEngine.kt"
-          TARGET="project/clipforge_src/app/src/main/java/com/clipforge/app/OnDeviceClipEngine.kt"
+          ENGINE_SOURCE="OnDeviceClipEngine.kt"
+          ACTIVITY_SOURCE="MainActivity.kt"
 
-          if [ ! -f "$SOURCE" ]; then
-            echo "Updated OnDeviceClipEngine.kt not found"
-            exit 1
-          fi
+          ENGINE_TARGET="project/clipforge_src/app/src/main/java/com/clipforge/app/OnDeviceClipEngine.kt"
+          ACTIVITY_TARGET="project/clipforge_src/app/src/main/java/com/clipforge/app/MainActivity.kt"
 
-          if [ ! -f "$TARGET" ]; then
-            echo "Original Android engine file not found"
-            exit 1
-          fi
+          for FILE in "$ENGINE_SOURCE" "$ACTIVITY_SOURCE" "$ENGINE_TARGET" "$ACTIVITY_TARGET"; do
+            if [ ! -s "$FILE" ]; then
+              echo "Required file missing or empty: $FILE"
+              exit 1
+            fi
+          done
 
-          cp "$SOURCE" "$TARGET"
+          cp "$ENGINE_SOURCE" "$ENGINE_TARGET"
+          cp "$ACTIVITY_SOURCE" "$ACTIVITY_TARGET"
 
-          echo "Updated engine copied successfully"
-          test -s "$TARGET"
+          echo "Both updated Kotlin files copied successfully."
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
